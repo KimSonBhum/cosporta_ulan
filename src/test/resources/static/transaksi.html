@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Kelola Transaksi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="bg-light p-4">
+<div class="container">
+    <h2 class="mb-4">Kelola Transaksi</h2>
+
+    <!-- Notifikasi -->
+    <div id="alertContainer"></div>
+
+    <!-- Form tambah transaksi -->
+    <form id="transactionForm" class="row g-3 mb-4">
+        <div class="col-md-4">
+            <input type="text" id="productName" class="form-control" placeholder="Nama Produk" required>
+        </div>
+        <div class="col-md-2">
+            <input type="number" id="quantity" class="form-control" placeholder="Jumlah" required>
+        </div>
+        <div class="col-md-3">
+            <select id="paymentType" class="form-select" required>
+                <option value="">-- Pilih Pembayaran --</option>
+                <option value="CASH">CASH</option>
+                <option value="CASHLESS">CASHLESS</option>
+            </select>
+        </div>
+        <div class="col-md-3 d-grid">
+            <button type="submit" class="btn btn-primary">Tambah Transaksi</button>
+        </div>
+    </form>
+
+    <!-- Tombol Export -->
+    <div class="mb-3">
+        <button class="btn btn-success" onclick="exportExcel()">Export ke Excel</button>
+    </div>
+
+    <!-- Tabel transaksi -->
+    <table class="table table-bordered table-striped">
+        <thead class="table-dark">
+        <tr>
+            <th>ID</th>
+            <th>Produk</th>
+            <th>Jumlah</th>
+            <th>Pembayaran</th>
+            <th>Total</th>
+            <th>Tanggal</th>
+            <th>Aksi</th>
+        </tr>
+        </thead>
+        <tbody id="trxTableBody"></tbody>
+    </table>
+
+    <a href="menu.html" class="btn btn-secondary">Kembali ke Menu</a>
+</div>
+
+<script>
+    const trxUrl = "http://localhost:8080/Transaksi";
+
+    function showAlert(message, type) {
+      const alertContainer = document.getElementById("alertContainer");
+      alertContainer.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>`;
+    }
+
+    // Load transaksi
+    async function loadTransactions() {
+      const res = await fetch(trxUrl);
+      const trxs = await res.json();
+      const tbody = document.getElementById("trxTableBody");
+      tbody.innerHTML = "";
+
+      trxs.forEach(t => {
+        const total = t.totalAmount ?? t.total ?? 0;
+        const tanggal = t.createdDate
+          ? new Date(t.createdDate).toLocaleDateString("id-ID")
+          : "";
+
+        const row = `<tr>
+          <td>${t.id}</td>
+          <td>${t.productName}</td>
+          <td>${t.quantity}</td>
+          <td>${t.paymentType}</td>
+          <td data-value="${total}">${total.toLocaleString("id-ID")}</td>
+          <td>${tanggal}</td>
+          <td>
+            <button class="btn btn-danger btn-sm" onclick="deleteTransaction(${t.id})">Hapus</button>
+          </td>
+        </tr>`;
+        tbody.innerHTML += row;
+      });
+    }
+
+    // Tambah transaksi
+    document.getElementById("transactionForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const productName = document.getElementById("productName").value;
+      const quantity = document.getElementById("quantity").value;
+      const paymentType = document.getElementById("paymentType").value;
+
+      await fetch(trxUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ productName, quantity, paymentType })
+      });
+
+      document.getElementById("transactionForm").reset();
+      loadTransactions();
+      showAlert("Transaksi berhasil ditambahkan!", "success");
+    });
+
+    // Hapus transaksi
+    async function deleteTransaction(id) {
+      await fetch(`${trxUrl}/${id}`, { method: "DELETE" });
+      loadTransactions();
+      showAlert("Transaksi berhasil dihapus!", "danger");
+    }
+
+    // Export ke Excel
+    function exportExcel() {
+      const table = document.querySelector("table");
+
+      // ganti isi cell total pakai data-value (angka asli)
+      table.querySelectorAll("td[data-value]").forEach(td => {
+        td.textContent = td.getAttribute("data-value");
+      });
+
+      const wb = XLSX.utils.table_to_book(table, { sheet: "Transaksi" });
+      XLSX.writeFile(wb, "transaksi.xlsx");
+
+      // restore tampilan pakai format ribuan
+      table.querySelectorAll("td[data-value]").forEach(td => {
+        const val = Number(td.getAttribute("data-value"));
+        td.textContent = val.toLocaleString("id-ID");
+      });
+    }
+
+    loadTransactions();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

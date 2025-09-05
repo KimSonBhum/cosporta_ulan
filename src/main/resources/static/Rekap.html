@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Rekap Transaksi</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light p-4">
+<div class="container">
+  <h2 class="mb-4">Rekap Transaksi Harian</h2>
+
+  <!-- Form pilih tanggal -->
+  <form id="rekapForm" class="row g-3 mb-4">
+    <div class="col-md-4">
+      <input type="date" id="trxDate" class="form-control" required>
+    </div>
+    <div class="col-md-3 d-grid">
+      <button type="submit" class="btn btn-primary">Cari</button>
+    </div>
+  </form>
+
+  <!-- Tabel rekap -->
+  <table class="table table-bordered table-striped">
+    <thead class="table-dark">
+    <tr>
+      <th>Produk</th>
+      <th>Total Jumlah</th>
+      <th>Total Penjualan</th>
+    </tr>
+    </thead>
+    <tbody id="rekapTableBody"></tbody>
+  </table>
+
+  <a href="menu.html" class="btn btn-secondary">Kembali ke Menu</a>
+</div>
+
+<script>
+  const trxUrl = "http://localhost:8080/Transaksi";
+
+  // Ambil & proses rekap transaksi
+  async function loadRekap(tanggal) {
+    const res = await fetch(trxUrl);
+    const transactions = await res.json();
+
+    // filter sesuai tanggal (format asumsi ISO: 2025-09-05)
+    const trxHarian = transactions.filter(t =>
+      t.createdDate && t.createdDate.startsWith(tanggal)
+    );
+
+    // group by productName
+    const rekap = {};
+    trxHarian.forEach(t => {
+      const total = t.totalAmount ?? t.total ?? 0;
+      if (!rekap[t.productName]) {
+        rekap[t.productName] = { totalQty: 0, totalSales: 0 };
+      }
+      rekap[t.productName].totalQty += Number(t.quantity);
+      rekap[t.productName].totalSales += Number(total);
+    });
+
+    // ubah ke array untuk render
+    return Object.entries(rekap).map(([productName, v]) => ({
+      productName,
+      totalQty: v.totalQty,
+      totalSales: v.totalSales
+    }));
+  }
+
+  // render tabel rekap
+  function renderTable(data) {
+    const tbody = document.getElementById("rekapTableBody");
+    tbody.innerHTML = "";
+
+    if (data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" class="text-center">Tidak ada transaksi</td></tr>`;
+      return;
+    }
+
+    data.forEach(r => {
+      const row = `<tr>
+        <td>${r.productName}</td>
+        <td>${r.totalQty}</td>
+        <td>${r.totalSales.toLocaleString("id-ID")}</td>
+      </tr>`;
+      tbody.innerHTML += row;
+    });
+  }
+
+  // handle submit form
+  document.getElementById("rekapForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const tanggal = document.getElementById("trxDate").value;
+    const result = await loadRekap(tanggal);
+    renderTable(result);
+  });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
